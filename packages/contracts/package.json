@@ -1,0 +1,21 @@
+{
+  "name": "@outsaid/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@outsaid/config": "workspace:*",
+    "eslint": "^9.39.0",
+    "typescript": "5.9.3"
+  }
+}

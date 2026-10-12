@@ -1,0 +1,23 @@
+{
+  "name": "outsaid",
+  "private": true,
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "db:generate": "pnpm --filter @outsaid/api db:generate",
+    "db:validate": "pnpm --filter @outsaid/api db:validate",
+    "db:migrate:dev": "pnpm --filter @outsaid/api db:migrate:dev",
+    "db:migrate:deploy": "pnpm --filter @outsaid/api db:migrate:deploy"
+  },
+  "devDependencies": {
+    "turbo": "2.11.7",
+    "typescript": "5.9.3"
+  }
+}
