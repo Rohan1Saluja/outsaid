@@ -1,3 +1,19 @@
+# Session 02 follow-up: provisioning diagnostics
+
+Date: 2026-10-13
+Branch: `fix/pilot-provisioning-diagnostics`
+Base: current main at `e9a915b` (Session 02 PR #2 merged).
+
+The user reports both migrations applied to Supabase and auth runtime-role SQL executed successfully. Provisioning still fails; a user-run Node pg probe reported SELF_SIGNED_CERT_IN_CHAIN. After supplying CA-file guidance, provisioning again failed with the old generic message; its current underlying cause is unknown. No credentials or CA file were supplied to this workspace, and no external database changes were made here.
+
+Implemented: operator-only safe provisioning stage/category diagnostics, specific length/mismatch feedback, known Prisma/pg wrapper classification and accurate reporting if cleanup fails after account creation. Passwords remain hidden, untrimmed and outside CLI arguments. No auth endpoint behavior or migrations changed.
+
+Verified: API lint, strict typecheck/build and auth integration tests including POSIX hidden-password provisioning, plus diagnostic redaction/category tests. 12 tests pass; optional web-rewrite test skipped in this focused run (unchanged and previously verified). Windows terminal and current Supabase connection remain unverified. No merge or deployment performed.
+
+Next: run the updated provisioning CLI locally and report only its stage/category. Resolve that actual error before switching to the restricted backend role. Previous Session 02 handoff follows; its original database-availability statements are historical.
+
+---
+
 # Session 02 handoff
 
 Date: 2026-10-12
