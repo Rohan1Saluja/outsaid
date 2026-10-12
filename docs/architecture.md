@@ -3,12 +3,12 @@
 ## Request boundary
 Browser requests `/api/v1/*` on the web origin. Next.js rewrites them to NestJS `/v1/*`. The browser never receives the upstream URL from the client helper. Next.js owns presentation and routing; NestJS owns all application decisions and database access.
 
-The only implemented business-independent route is `GET /v1/health`. It returns the fixed `HealthResponse` contract and `Cache-Control: no-store`. It proves that Nest can handle an HTTP request, not that PostgreSQL is reachable. Unknown routes under `/v1` receive the shared error envelope. Routes outside that namespace return the adapter's 404 response.
+The implemented business-independent route is `GET /v1/health`. It returns the fixed `HealthResponse` contract and `Cache-Control: no-store`. It proves that Nest can handle an HTTP request, not that PostgreSQL is reachable. Unknown routes under `/v1` receive the shared error envelope. Routes outside that namespace return the adapter's 404 response.
 
 Nest uses an explicit Express adapter, a global `v1` prefix, strict ValidationPipe (unknown DTO properties rejected, implicit conversion disabled, no target/value leak), and an exception filter. Unexpected errors are sanitized; logs deliberately omit raw errors, bodies and database URLs. Add structured request IDs and safe stage-specific diagnostics when real services are introduced.
 
 ## Workspaces
-`@outsaid/contracts` exports TypeScript-only response/envelope/pagination types; it has no runtime or database dependencies. Future contracts are proposals in docs/api-contracts.md, not live routes. `@outsaid/config` provides strict compiler settings and shared lint rules. Web adds Next-specific rules and prohibits database/API imports.
+`@outsaid/contracts` exports TypeScript-only response/envelope/pagination types; it has no runtime or database dependencies. Authentication contracts are implemented; report contracts in docs/api-contracts.md remain proposals. `@outsaid/config` provides strict compiler settings and shared lint rules. Web adds Next-specific rules and prohibits database/API imports.
 
 Turborepo orchestrates independent apps; it tracks `API_ORIGIN` for web build caching. Prisma Client is generated into ignored API source and compiled alongside Nest. A generated client is reusable within one process; it contains no session/application state. No database connection is opened until a query is performed. The PostgreSQL driver pool is bounded to two connections per instance, with idle and acquisition timeouts, in addition to Supabase transaction pooling.
 
@@ -19,6 +19,7 @@ All tables and enums live in `outsaid`, not an exposed Supabase schema.
 | --- | --- |
 | User | Normalized unique email, password hash, role and deactivation timestamp |
 | Session | Unique hashed opaque token, owner, expiration and revocation; no raw token |
+| LoginThrottle | Private account/source HMAC, fixed-window timestamp and atomic counter |
 | Report | Private working copy, owner, independent publication/verification states, version, approval/publication metadata |
 | ReportSource | Private evidence link/document/eyewitness description; not automatically public |
 | ReportRevision | Immutable numbered content and source snapshot; unique number within a report |
@@ -36,5 +37,10 @@ The migration revokes PUBLIC schema/table privileges and enables RLS without pub
 
 Audit/revision immutability is for ordinary application writes; administrative maintenance can still alter data. A retention/redaction procedure for personal information must be designed before collecting real evidence. This is not a guarantee of anonymity or decentralized storage. Outsaid currently uses centrally hosted infrastructure.
 
+## Authentication
+Nest owns login, safe account serialization, opaque sessions and database throttling. SessionGuard re-reads expiry, revocation, disabled status and role on every authenticated request; protected mutations additionally require exact Origin and session-bound CSRF. RolesGuard fails closed without an authenticated user and explicit allowed roles. Next remains presentation-only; its existing rewrite transports cookies, Origin and CSRF headers without handling credentials itself.
+
+`LoginThrottle` is a private eighth model. Atomic PostgreSQL upserts count normalized-account and trusted-source HMACs across instances. See [authentication operations](authentication.md) for source trust, fixed-window tradeoffs and retention.
+
 ## Intentionally absent
-Auth/session guards, CSRF/origin enforcement, rate limiting, registration/login endpoints, public report queries, submission/moderation services, uploads and real news. A future session must implement and test the security controls before enabling the corresponding endpoint.
+Public registration, verification/reset/email delivery, public report queries, submission/moderation services, uploads and real news. Authentication does not authorize unimplemented product workflows.

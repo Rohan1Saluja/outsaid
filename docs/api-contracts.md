@@ -6,23 +6,28 @@
 
 Errors use `{ "error": { "code": "HTTP_400", "message": "Request validation failed.", "details": ["..."] } }`. `details` is optional. Unexpected failures return `INTERNAL_ERROR` and a generic message. Do not serialize stack traces, Prisma records or untrusted request values.
 
+## Implemented authentication (controlled pilot)
+
+Browser callers use `/api/v1` through the existing web rewrite. All auth responses, including failures, are `Cache-Control: no-store`.
+
+| Method/path | Input | Result |
+| --- | --- | --- |
+| POST /v1/auth/login | JSON `{email,password}` and exact allowed Origin | 200 `{user:{id,displayName,role}}` plus session cookie |
+| GET /v1/auth/me | Session cookie | 200 `{user:{id,displayName,role}}`; current database role |
+| GET /v1/auth/csrf | Session cookie | 200 `{csrfToken}` bound to that session |
+| POST /v1/auth/logout | Session cookie, allowed Origin, `x-csrf-token` | 204, persisted revocation and expired cookie |
+
+No `/auth/register` route exists. Public registration, email verification, password reset and email delivery are deferred. Trusted operators provision pilot accounts with the interactive CLI; accounts default to CONTRIBUTOR. Email ownership is not verified by this flow.
+
+Login email is trimmed/lowercased; passwords are never normalized or trimmed. Login accepts 1–128 characters; provisioning requires 12–128. Unknown JSON fields are rejected. Incorrect password, nonexistent email and disabled user all return the same 401. Invalid input returns 400; missing/disallowed Origin or invalid session-bound CSRF returns 403; exhausted login budget returns 429; database/throttle failures return sanitized 503. Invalid, expired, revoked or disabled-user sessions return 401.
+
+Only `id`, `displayName`, and `role` are serialized. No email, hash, private timestamps or session identifiers appear in user responses. CSRF tokens are returned only to authenticated requests; no permissive CORS is enabled. RolesGuard requires SessionGuard first and reads only its database-validated user. SessionGuard automatically enforces origin and CSRF on protected mutations.
+
+See [authentication operations](authentication.md) for cookie settings, lifetimes, rate limits, provisioning, database roles and required deployment gates.
+
 ## Proposed for later sessions (not implemented)
 
-Browser callers use `/api/v1` in place of `/v1`. All dates are ISO 8601 UTC strings; identifiers are UUID strings. Public responses are explicitly selected/redacted. Client-provided roles, ownership, approval or verification fields are never accepted.
-
-### Authentication
-
-| Method/path | Input | Intended result and access |
-| --- | --- | --- |
-| POST /v1/auth/register | `{ email, password, displayName }` | 201 safe current-user DTO; contribution eligibility/verification policy to be decided before enabling |
-| POST /v1/auth/login | `{ email, password }` | 200 `{ user: { id, displayName, role } }`, session cookie; generic 401 on failure |
-| GET /v1/auth/me | Session cookie | 200 safe current-user DTO or 401 |
-| GET /v1/auth/csrf | Session cookie | 200 session-bound CSRF token, no-store |
-| POST /v1/auth/logout | Session cookie + CSRF header | 204, revoke current database session and clear cookie |
-
-Use Argon2id, random high-entropy opaque session tokens and SHA-256 token hashes in PostgreSQL. Cookies must be HttpOnly, Secure in deployed environments, host-only (no Domain), Path=/ and SameSite=Lax unless a documented flow requires otherwise; use a production `__Host-` name. Local HTTP needs a documented non-Secure development cookie name. Do not store auth tokens in localStorage. Verify exact allowed Origin on all auth mutations, including login/register, and session-bound CSRF tokens on authenticated mutations. Do not trust forwarded headers as an origin allowlist. Configure exact preview web origins separately.
-
-Database sessions require expiration/revocation checks and disabled-user checks on every authenticated request. Authorization uses current server-side role/ownership. Auth responses are no-store. Login/registration throttling must work across serverless instances. Session duration, password rules, registration eligibility, email verification and reset flows need a Session 02 decision. No route listed here grants access today.
+Dates are ISO 8601 UTC strings; identifiers are UUID strings. Public responses must be explicitly selected/redacted. Client-provided roles, ownership, approval or verification fields are never accepted.
 
 ### Reports and moderation
 

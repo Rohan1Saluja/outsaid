@@ -237,3 +237,12 @@ model ContentFlag {
   @@index([resolvedById])
   @@schema("outsaid")
 }
+
+model LoginThrottle {
+  key         String   @id @db.Char(64)
+  windowStart DateTime @db.Timestamptz(3)
+  attempts    Int
+
+  @@index([windowStart])
+  @@schema("outsaid")
+}

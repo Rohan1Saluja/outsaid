@@ -10,3 +10,11 @@ export interface CursorPage<T> {
   items: T[];
   nextCursor: string | null;
 }
+export interface CurrentUser {
+  id: string;
+  displayName: string;
+  role: 'CONTRIBUTOR' | 'MODERATOR' | 'ADMIN';
+}
+export interface AuthResponse { user: CurrentUser }
+export interface CsrfResponse { csrfToken: string }
+export interface LoginRequest { email: string; password: string }

@@ -1,8 +1,8 @@
-# Deployment configuration (not deployed)
+# Deployment configuration
 
 ## Two independent projects
 
-Import the same GitHub repository twice. Do not create or deploy projects as part of Session 01.
+The existing projects are `outsaid-frontend` and `outsaid-backend`. Their verified domains are `outsaid.vercel.app` and `outsaid-api.vercel.app` (Vercel API, Session 02). No deployment was performed in Session 02. Both direct `/v1/health` and rewritten `/api/v1/health` returned HTTP 500 `FUNCTION_INVOCATION_FAILED` during read-only checks on 2026-10-12; the existing deployment needs investigation before pilot use.
 
 | Setting | outsaid | outsaid-api |
 | --- | --- | --- |
@@ -20,7 +20,7 @@ The filter includes only the target app and its workspace dependencies, so web d
 
 Vercel's native NestJS preset detects `src/main.ts` and its normal `app.listen` bootstrap. It runs the app as a Vercel Function; no legacy `builds`/`@vercel/node` wrapper or catch-all `api/index.ts` is needed. Do not replace the backend with Next route handlers. Fluid instances remain stateless; database connection/client reuse is allowed, session storage in memory is not.
 
-Before enabling automatic production Git deployments, establish the release approval process. No production deployment is authorized by this foundation session. Domain availability and project settings have not been verified.
+Before enabling automatic production Git deployments, establish the release approval process. No production deployment is authorized by this foundation session. Domain assignment is verified; remote build/runtime configuration and region/database connectivity remain unverified.
 
 ## Environment ownership
 
@@ -69,4 +69,11 @@ Run frozen install, lint, typecheck, build, tests and Prisma validation. Verify 
 - [Prisma Client generator](https://www.prisma.io/docs/orm/v7/prisma-schema/overview/generators)
 - [Supabase Prisma integration](https://supabase.com/docs/guides/database/prisma)
 
-Configuration follows these conventions; an actual Vercel deployment remains unverified.
+Domain assignments were inspected; Session 02 production health checks failed as recorded above. No new deployment was initiated.
+
+
+## Session 02 authentication gate
+
+Follow [authentication operations](authentication.md) before deploying this branch. New required **API-only** variables: AUTH_ALLOWED_ORIGINS and AUTH_SECRET. VERCEL is platform-provided, not a client header. Configure preview origins and isolated preview databases explicitly. The web project still requires only API_ORIGIN; no auth secret or database access belongs there.
+
+Provision the least-privilege runtime role separately from migration/provisioning credentials; explicitly apply migrations to confirmed development first. Schedule hourly trusted `auth:cleanup` for retention. Before release, verify actual secure cookie forwarding, source-header spoof resistance through both direct/rewrite paths, native PostgreSQL concurrency, Supabase transaction pooling and schema exposure settings. Do not set production variables or run production migrations as part of this PR.
