@@ -1,3 +1,69 @@
+# Session 03 handoff: private report drafting and submission
+
+Date: 2026-10-13
+Branch: `feat/session-03-private-reports`
+Base: `main` at `24d7464` (Session 02 PR #2 and provisioning diagnostics PR #3 both merged).
+PR: https://github.com/Rohan1Saluja/outsaid/pull/4
+Published implementation tree matches the locally tested tree: `34e1493d6bd1291581628a4d835dee9c63c7a65a`.
+Status: Implementation complete; partial verification pending native PostgreSQL/Supabase and browser availability. No merge or deployment initiated.
+
+## Reported environment, distinct from verification
+
+The user reports both migrations applied to Supabase, auth permission-group SQL applied, a restricted outsaid_backend login created, an administrator provisioned, and local login → account → logout → protected redirect working. Their Node pg connection uses the Supabase CA with sslmode=verify-full and sslrootcert. These reports supersede the earlier provisioning failure in historical handoff; no credentials/certificate/development target were supplied here, and no remote database or Vercel authentication/certificate check was performed.
+
+## Implemented
+
+- Authenticated POST /reports, GET /reports/mine, GET /reports/:id, PATCH /reports/:id and POST /reports/:id/submit.
+- CONTRIBUTOR/MODERATOR/ADMIN authoring with own-report-only access for every role; cross-user details/mutations return 404.
+- Explicit private DTO selections, bounded nested validation/UTF-8 JSON size, no uploads/URL fetching, exact-origin and session-bound CSRF through existing SessionGuard.
+- Atomic revision 1 creation; DRAFT-only author/version CAS edits; source replacement with retained JSON history; submission snapshot/status/timestamp/version transaction; submitted read-only state and independent UNVERIFIED status.
+- Existing durable throttles extended with account/action HMAC budgets: creation 20/hour, editing 120/hour, submission 20/hour in fixed UTC windows. Counters commit before report work; storage failure is closed; existing 24-hour cleanup applies.
+- Separate reviewed report permission-group SQL with bounded column grants/RLS. No owner/superuser/BYPASSRLS/schema CREATE, report deletion, history mutation or moderation permissions. Nest ownership remains mandatory.
+- Light My reports/pagination/new/edit/detail UI, source add/remove, editorial/privacy guidance, conflict/error retention, unsaved-navigation warning, native confirmation dialog and read-only submissions; account links and typed same-origin API client/contracts.
+- API, report operations, authentication/deployment/architecture guidance and AGENTS scope updated. No schema migration or application dependency changes; original SQL migrations/triggers/constraints/auth/proxy behavior retained.
+
+## Verification evidence
+
+| Check | Result |
+| --- | --- |
+| Frozen pnpm 11.25.0 installation | Pass |
+| Workspace lint and strict typechecks | Pass |
+| API and web production builds | Pass |
+| Prisma generate/validate | Pass; no migration engine or external apply claimed |
+| AUTH_TEST_WEB=1 AUTH_TEST_CLI=1 REPORT_TEST_WEB=1 API test suite | 23 tests pass; zero skipped |
+| Real Prisma pg adapters → disposable PGlite via TCP | Pass; existing migration SQL + both permission scripts executed; app uses restricted test LOGIN/NOBYPASSRLS and owner is separate |
+| Create → edit/source removal → submit with immutable snapshots | Pass; safe DTOs/status/version/metadata and append-only triggers |
+| Every route: missing/disabled/revoked/expired sessions; every role own-only | Pass; live role changes observed through existing sessions |
+| Origin/session-bound CSRF, forbidden ownership/status/approval inputs, nested/scheme/version/JSON limits | Pass |
+| Stale/concurrent edits, concurrent submissions and edit versus submit | Pass on PGlite; native lock scheduling unverified |
+| Induced revision-insert failure and invalid legacy content | Pass; creation/edit/submission rollback, source/history intact, sanitized errors/logs |
+| Private read/throttle storage outage | Pass; uncached sanitized 503 and no report write on throttle failure |
+| Default 20/max 100 pagination, equal timestamps, exclusive cursors, empty/malformed boundaries | Pass |
+| Durable action limits across two clients, independence/window reset/24-hour cleanup/429 | Pass on PGlite |
+| Restricted-role CRUD; approval/verification/publication/schema/history/moderation denial; public-role denial | Pass on disposable engine |
+| Actual Next dev rewrite HTTP flow | Pass: login → create → edit → submit → denied edit → mine → logout → 401; no-store/cookies/CSRF transported |
+| Existing authentication, health and hidden-password provisioning regression checks | Pass |
+| React/accessibility/static boundary review | Pass; final form copies only editable fields, uses labels/legends/native dialog, stable source keys and no browser storage |
+| Native PostgreSQL/Supabase pooling/TLS and development migration status | Unverified: no isolated credentials; local native setup blocked by container package/user permissions |
+| Desktop/mobile browser, keyboard/dialog/navigation QA | Unverified: Chromium archive download truncated/invalid |
+| Diff whitespace | Pass |
+
+PGlite is a real PostgreSQL WASM engine, not mocked persistence, but multiplexes a single connection. Its concurrency/RLS results do not prove native scheduling, Supabase TLS/pooling, Data API settings or Prisma migrate status. Optional REPORT_TEST_DATABASE_URL supports a new disposable outsaid_reports_test_* database, refuses existing outsaid schema and never resets/drops a supplied target. See docs/reports.md for reproducible commands and remaining platform gates. HTTP rewrite tests exercise transport, not browser UI interactions.
+
+## Development setup and remaining gates
+
+There is no new migration or environment variable. Review/apply apps/api/prisma/operations/reports-runtime-role.sql as owner on a **confirmed dedicated development database**, then explicitly grant outsaid_reports_runtime to outsaid_backend alongside existing auth membership. This script/membership was tested only on disposable PGlite, never applied remotely. Keep outsaid outside the Supabase Data API, retain restricted runtime credentials and CA verification, and inspect real grants before applying. Configure existing trusted hourly auth:cleanup for both auth/report throttle retention before pilot release.
+
+Before release, rerun native persistence/concurrency/runtime-role tests, actual development migration status and Supabase pooling/TLS checks; complete desktop/mobile UI and deployed rewrite/cookie/CSRF/certificate checks on isolated preview. Older production 500 observations below remain historical. Session 03 makes no present production health claim, environment change, remote migration, merge or production deployment.
+
+## Session 04 can assume
+
+Private author draft/edit/submission contracts, immutable revisions, role guards, durable limits and safe same-origin UI are implemented and locally reviewable. SUBMITTED stays private/read-only; verification remains independent; no ModerationEvent is misused for contributor actions. Current sources are replaceable but revisions retain removed source content; human redaction/retention remains an operational prerequisite for real evidence.
+
+Session 04 must inspect this PR's actual merge state and the new permission script before adding review/publication behavior. Moderator access to other authors is intentionally absent and requires a separate server-side permission design, revised least-privilege grants, immutable exact-revision approval and auditing. Public serializers must redact private identities/evidence and use a human-reviewed revision. Await the explicit Session 04 prompt; no moderation/publication/public feed/corrections/uploads/AI/notification work was started.
+
+---
+
 # Session 02 follow-up: provisioning diagnostics
 
 Date: 2026-10-13

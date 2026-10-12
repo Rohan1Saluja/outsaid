@@ -34,7 +34,9 @@ export default function AccountPage() {
     {user && <section className="mt-8 rounded-lg border border-stone-300 bg-white p-6">
       <h2 className="text-xl font-semibold">{user.displayName}</h2>
       <p className="mt-2 text-sm text-stone-600">Role: {user.role.toLowerCase()}</p>
-      <p className="mt-6 leading-7 text-stone-600">You are signed in to the Outsaid pilot. Reporting tools will be available in a future release.</p>
+      <p className="mt-6 leading-7 text-stone-600">Your drafts and submissions stay private until human review. Submission does not mean verification or publication.</p>
+      <Link href="/reports" className="mt-6 block font-semibold text-teal-900 underline">My reports</Link>
+      <Link href="/reports/new" className="mt-3 block text-teal-900 underline">Create a private report</Link>
       <button onClick={signOut} disabled={busy} className="mt-6 rounded-md bg-teal-900 px-5 py-3 font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-4 disabled:opacity-60">{busy ? 'Signing out…' : 'Sign out'}</button>
     </section>}
     {error && <div className="mt-6"><p role="alert" className="text-red-800">{error}</p>

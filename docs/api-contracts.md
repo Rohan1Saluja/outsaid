@@ -25,24 +25,33 @@ Only `id`, `displayName`, and `role` are serialized. No email, hash, private tim
 
 See [authentication operations](authentication.md) for cookie settings, lifetimes, rate limits, provisioning, database roles and required deployment gates.
 
+## Implemented private reports (Session 03)
+
+Dates are ISO 8601 UTC strings; identifiers are UUIDs. Every route requires a valid current database-backed session. CONTRIBUTOR, MODERATOR and ADMIN can author, but each can access only their own reports. Another user's report returns 404 for every detail/mutation route, regardless of role. All responses, including failures, are uncached. Authenticated mutations use the existing exact Origin + session-bound x-csrf-token protections.
+
+| Method/path | Input | Result |
+| --- | --- | --- |
+| POST /v1/reports | ReportContent: headline, body, locality?, claimBasis, sources | 201 PrivateReport; DRAFT / UNVERIFIED, version 1 |
+| GET /v1/reports/mine | cursor?, limit? | 200 CursorPage<PrivateReportSummary>; default 20, maximum 100 |
+| GET /v1/reports/:id | Own report UUID | 200 PrivateReport, otherwise 404 |
+| PATCH /v1/reports/:id | Complete ReportContent + expectedVersion + changeSummary | 200 PrivateReport; atomic content/source replacement and revision; DRAFT only |
+| POST /v1/reports/:id/submit | {expectedVersion} | 201 PrivateReport; SUBMITTED / UNVERIFIED, timestamp and version advanced, immutable snapshot |
+
+PrivateReport contains id, headline, body, locality, claimBasis, sources (kind/label/url/notes), publicationStatus, verificationStatus, version, createdAt, updatedAt and submittedAt. PrivateReportSummary omits body, locality and sources. No author/editor identity, approval fields or full Prisma records are serialized. Reports remain private on submission and become read-only; no moderation/publication is implied.
+
+Exact input limits: headline 5–200; body 20–20,000; optional locality 1–120 when provided; claimBasis ALLEGATION/EYEWITNESS_ACCOUNT/DOCUMENTED_INFORMATION; 1–10 source objects; source kind DOCUMENT/LINK/EYEWITNESS; label 5–200; URL max 2,048, absolute http/https with valid domain and no credentials (required for DOCUMENT/LINK); notes 20–1,000 when provided (required for EYEWITNESS); PATCH summary 5–500; expectedVersion integer 1–2,147,483,646. Combined canonical content/source JSON max 65,536 UTF-8 bytes. Unknown nested/top-level fields, including client owner/role/publication/verification/approval fields, are rejected. No uploads or URL fetching.
+
+Collection order is createdAt DESC, id DESC, with exclusive timestamp/UUID cursor; edits do not reorder creation order. Cursor maximum 200 characters, malformed input 400, limit 1–100. A cursor is a position, not an ownership credential; author filtering always applies.
+
+Errors: 400 invalid input/content; 401 invalid/disabled/revoked/expired session; 403 Origin/CSRF or denied role; 404 hidden/absent report; 409 stale version or read-only/duplicate transition; 429 durable hourly account budget; sanitized 503 database/limit storage failure. Creation/edit/submission have separate fixed UTC-hour budgets of 20/120/20, committed even if later report work fails. See [report operations](reports.md) for transactions, grants, retention, precise required fields and testing limitations.
+
 ## Proposed for later sessions (not implemented)
 
-Dates are ISO 8601 UTC strings; identifiers are UUID strings. Public responses must be explicitly selected/redacted. Client-provided roles, ownership, approval or verification fields are never accepted.
+| Method/path | Intended access/behavior |
+| --- | --- |
+| GET /v1/public/reports | Public cursor page using human-reviewed immutable revisions and redacted DTOs |
+| GET /v1/public/reports/:id | Reviewed public DTO or 404 |
+| POST /v1/reports/:id/moderation | Explicit moderator/admin permission, exact revision approval, reason, expectedVersion, audit transaction |
+| POST /v1/reports/:id/flags | Authenticated private flag acknowledgement |
 
-### Reports and moderation
-
-| Method/path | Input / access | Intended result |
-| --- | --- | --- |
-| POST /v1/reports | Eligible contributor; `{ headline, body, locality?, claimBasis, sources }` | 201 private DRAFT DTO |
-| GET /v1/reports/mine | Authenticated owner; `cursor?`, `limit?` | Cursor page of own private reports |
-| GET /v1/reports/:id | Owner or moderator/admin | Private role-appropriate DTO, otherwise 404 |
-| PATCH /v1/reports/:id | Owner, editable state; content + expected `version` | New immutable revision; 409 on stale/conflicting version |
-| POST /v1/reports/:id/submit | Owner + expected `version` | Transition eligible draft to SUBMITTED; still private |
-| GET /v1/public/reports | Public; `cursor?`, `limit?` | Only PUBLISHED records using reviewed revision and redacted DTO |
-| GET /v1/public/reports/:id | Public | Reviewed public DTO or 404 |
-| POST /v1/reports/:id/moderation | Moderator/admin; `{ action, reason, revisionId, expectedVersion }` | Transactional authorized transition + audit |
-| POST /v1/reports/:id/flags | Authenticated; `{ reason, details? }` | 201 private flag acknowledgement |
-
-Default limit 20, maximum 100; deterministic `(timestamp, id)` cursors. Bound string/source counts and validate URL schemes in DTOs. No server-side source fetching without SSRF controls. All mutations require origin/CSRF protection where authenticated and persistent submission throttles. Error cases include 400 invalid input, 401 unauthenticated, 403 forbidden, 404 hidden/nonexistent, 409 stale/invalid transition and 429 rate limit. Public DTOs must omit author IDs/emails, session fields, private notes, unreviewed source snapshots and precise sensitive location data.
-
-Publishing requires human approval of the exact revision plus audit in one transaction. Verification changes are separate explicit reviewed actions. Once published, draft changes cannot alter the public snapshot until reviewed again. These contracts are a design handoff, not feature implementations or promises of endpoint availability.
+Publishing requires human approval of the exact revision plus audit in one transaction. Verification changes remain separate explicit reviewed actions. Public DTOs must omit contributor identity, private notes, unreviewed sources and precise sensitive locations. These future contracts are design notes, not endpoint availability.
