@@ -5,6 +5,11 @@ import { isEmail } from 'class-validator';
 import { PrismaClient } from '../generated/prisma/client';
 import type { UserRole } from '../generated/prisma/client';
 import { hashPassword, normalizeEmail } from '../auth/crypto';
+import { ProvisioningInputError, provisioningFailure } from './provisioning-errors';
+import type { ProvisioningStage } from './provisioning-errors';
+
+let stage: ProvisioningStage = 'configuration';
+let created = false;
 
 async function hiddenPassword(label: string): Promise<string> {
   process.stdin.setEncoding('utf8');
@@ -21,7 +26,7 @@ async function hiddenPassword(label: string): Promise<string> {
     }
     function onData(data: string) {
       for (const char of data) {
-        if (char === '\u0003') { finish(new Error('Cancelled')); return; }
+        if (char === '\u0003') { finish(new ProvisioningInputError('CANCELLED')); return; }
         if (char === '\r' || char === '\n') { finish(); return; }
         if (char === '\u007f' || char === '\b') value = Array.from(value).slice(0, -1).join('');
         else if (char >= ' ' && value.length < 129) value += char;
@@ -34,27 +39,41 @@ async function hiddenPassword(label: string): Promise<string> {
 }
 async function main() {
   if (process.argv.length !== 2 || !process.stdin.isTTY || !process.stdout.isTTY) {
-    throw new Error('Use an interactive terminal without arguments.');
+    throw new ProvisioningInputError('TERMINAL_REQUIRED');
   }
   const url = process.env.DATABASE_URL;
-  if (!url) throw new Error('DATABASE_URL required.');
-  const target = new URL(url);
+  if (!url) throw new ProvisioningInputError('DATABASE_URL_REQUIRED');
+  let target: URL;
+  try {
+    target = new URL(url);
+    if (!['postgres:', 'postgresql:'].includes(target.protocol) || !target.hostname || !target.pathname.slice(1)) throw new Error();
+  } catch { throw new ProvisioningInputError('INVALID_DATABASE_URL'); }
+  stage = 'account_input';
   const prompts = createInterface({ input: process.stdin, output: process.stdout });
   console.log(`Target: ${target.hostname}:${target.port || '5432'}${target.pathname}`);
-  if (await prompts.question('Confirm intended database (type PROVISION): ') !== 'PROVISION') { prompts.close(); throw new Error('Cancelled'); }
+  if (await prompts.question('Confirm intended database (type PROVISION): ') !== 'PROVISION') { prompts.close(); throw new ProvisioningInputError('CANCELLED'); }
   const email = normalizeEmail(await prompts.question('Email: '));
   const displayName = (await prompts.question('Display name: ')).trim();
   const choice = (await prompts.question('Role [CONTRIBUTOR] (MODERATOR or ADMIN requires explicit choice): ')).trim();
   const role = choice || 'CONTRIBUTOR';
   prompts.close();
-  if (!isEmail(email) || email.length > 254 || !displayName || displayName.length > 80 || !['CONTRIBUTOR', 'MODERATOR', 'ADMIN'].includes(role)) throw new Error('Invalid account details');
+  if (!isEmail(email) || email.length > 254 || !displayName || displayName.length > 80 || !['CONTRIBUTOR', 'MODERATOR', 'ADMIN'].includes(role)) throw new ProvisioningInputError('INVALID_ACCOUNT_DETAILS');
+  stage = 'password_input';
   const password = await hiddenPassword('Password (hidden, 12–128 characters): ');
+  if (password.length < 12 || password.length > 128) throw new ProvisioningInputError('PASSWORD_LENGTH');
   const confirmation = await hiddenPassword('Confirm password (hidden): ');
-  if (password.length < 12 || password.length > 128 || password !== confirmation) throw new Error('Password requirements or confirmation failed');
+  if (password !== confirmation) throw new ProvisioningInputError('PASSWORD_MISMATCH');
+  stage = 'hashing';
+  const passwordHash = await hashPassword(password);
   const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: url, max: 1 }) });
   try {
-    await db.user.create({ data: { email, displayName, role: role as UserRole, passwordHash: await hashPassword(password) } });
+    stage = 'database_insert';
+    await db.user.create({ data: { email, displayName, role: role as UserRole, passwordHash } });
+    created = true;
     console.log('Pilot account created.');
-  } finally { await db.$disconnect(); }
+  } finally {
+    if (created) stage = 'cleanup';
+    await db.$disconnect();
+  }
 }
-void main().catch(() => { console.error('Provisioning failed. Check target, input and account uniqueness. No account was overwritten.'); process.exitCode = 1; });
+void main().catch((error: unknown) => { console.error(provisioningFailure(error, stage, created)); process.exitCode = 1; });
