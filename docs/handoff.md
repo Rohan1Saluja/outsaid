@@ -3,6 +3,8 @@
 Date: 2026-10-13
 Branch: `feat/session-03-private-reports`
 Base: `main` at `24d7464` (Session 02 PR #2 and provisioning diagnostics PR #3 both merged).
+PR: https://github.com/Rohan1Saluja/outsaid/pull/4
+Published implementation tree matches the locally tested tree: `34e1493d6bd1291581628a4d835dee9c63c7a65a`.
 Status: Implementation complete; partial verification pending native PostgreSQL/Supabase and browser availability. No merge or deployment initiated.
 
 ## Reported environment, distinct from verification
