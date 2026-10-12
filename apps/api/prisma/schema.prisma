@@ -1,0 +1,239 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["outsaid"]
+}
+
+enum UserRole {
+  CONTRIBUTOR
+  MODERATOR
+  ADMIN
+
+  @@schema("outsaid")
+}
+
+enum PublicationStatus {
+  DRAFT
+  SUBMITTED
+  IN_REVIEW
+  CHANGES_REQUESTED
+  REJECTED
+  PUBLISHED
+  WITHDRAWN
+
+  @@schema("outsaid")
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  PARTIALLY_CORROBORATED
+  CORROBORATED
+  DISPUTED
+
+  @@schema("outsaid")
+}
+
+enum SourceKind {
+  DOCUMENT
+  LINK
+  EYEWITNESS
+  OTHER
+
+  @@schema("outsaid")
+}
+
+enum ClaimBasis {
+  ALLEGATION
+  EYEWITNESS_ACCOUNT
+  DOCUMENTED_INFORMATION
+
+  @@schema("outsaid")
+}
+
+enum ModerationAction {
+  REVIEW_STARTED
+  CHANGES_REQUESTED
+  REJECTED
+  APPROVED
+  PUBLISHED
+  WITHDRAWN
+  VERIFICATION_CHANGED
+  CORRECTION
+
+  @@schema("outsaid")
+}
+
+enum FlagReason {
+  INACCURATE
+  PRIVACY
+  HARMFUL
+  SPAM
+  OTHER
+
+  @@schema("outsaid")
+}
+
+enum FlagStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+  DISMISSED
+
+  @@schema("outsaid")
+}
+
+model User {
+  id               String            @id @default(uuid()) @db.Uuid
+  /// Trimmed lowercase email; SQL migration enforces normalization.
+  email            String            @unique @db.VarChar(254)
+  passwordHash     String            @db.Text
+  displayName      String            @db.VarChar(80)
+  role             UserRole          @default(CONTRIBUTOR)
+  disabledAt       DateTime?         @db.Timestamptz(3)
+  createdAt        DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @db.Timestamptz(3)
+  sessions         Session[]
+  reports          Report[]          @relation("ReportAuthor")
+  approvals        Report[]          @relation("ReportApprover")
+  revisions        ReportRevision[]
+  moderationEvents ModerationEvent[]
+  flags            ContentFlag[]     @relation("FlagSubmitter")
+  resolvedFlags    ContentFlag[]     @relation("FlagResolver")
+
+  @@schema("outsaid")
+}
+
+model Session {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  /// SHA-256 of a high-entropy opaque token. Never the raw cookie token.
+  tokenHash String    @unique @db.Char(64)
+  expiresAt DateTime  @db.Timestamptz(3)
+  revokedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+  @@schema("outsaid")
+}
+
+model Report {
+  id                  String             @id @default(uuid()) @db.Uuid
+  authorId            String             @db.Uuid
+  headline            String             @db.VarChar(200)
+  body                String             @db.Text
+  /// Broad locality only. No precise witness coordinates.
+  locality            String?            @db.VarChar(120)
+  claimBasis          ClaimBasis
+  publicationStatus   PublicationStatus  @default(DRAFT)
+  verificationStatus  VerificationStatus @default(UNVERIFIED)
+  version             Int                @default(1)
+  submittedAt         DateTime?          @db.Timestamptz(3)
+  approvedById        String?            @db.Uuid
+  approvedAt          DateTime?          @db.Timestamptz(3)
+  publishedAt         DateTime?          @db.Timestamptz(3)
+  publishedRevisionId String?            @db.Uuid
+  createdAt           DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime           @updatedAt @db.Timestamptz(3)
+  author              User               @relation("ReportAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  approvedBy          User?              @relation("ReportApprover", fields: [approvedById], references: [id], onDelete: Restrict)
+  sources             ReportSource[]
+  revisions           ReportRevision[]   @relation("ReportRevisions")
+  /// Composite relation prevents publishing another report's revision.
+  publishedRevision   ReportRevision?    @relation("PublishedRevision", fields: [id, publishedRevisionId], references: [reportId, id], onDelete: Restrict, onUpdate: NoAction)
+  moderationEvents    ModerationEvent[]
+  flags               ContentFlag[]
+
+  @@index([authorId, createdAt, id])
+  @@index([publicationStatus, submittedAt, id])
+  @@index([publicationStatus, publishedAt, id])
+  @@index([approvedById])
+  @@schema("outsaid")
+}
+
+model ReportSource {
+  id        String     @id @default(uuid()) @db.Uuid
+  reportId  String     @db.Uuid
+  kind      SourceKind
+  label     String     @db.VarChar(200)
+  url       String?    @db.Text
+  /// Private evidence notes, never a public serialization contract.
+  notes     String?    @db.Text
+  createdAt DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime   @updatedAt @db.Timestamptz(3)
+  report    Report     @relation(fields: [reportId], references: [id], onDelete: Restrict)
+
+  @@index([reportId])
+  @@schema("outsaid")
+}
+
+model ReportRevision {
+  id             String     @id @default(uuid()) @db.Uuid
+  reportId       String     @db.Uuid
+  editorId       String     @db.Uuid
+  number         Int
+  headline       String     @db.VarChar(200)
+  body           String     @db.Text
+  locality       String?    @db.VarChar(120)
+  claimBasis     ClaimBasis
+  /// Private source snapshot at this revision; must be an array.
+  sourceSnapshot Json       @db.JsonB
+  changeSummary  String     @db.VarChar(500)
+  createdAt      DateTime   @default(now()) @db.Timestamptz(3)
+  report         Report     @relation("ReportRevisions", fields: [reportId], references: [id], onDelete: Restrict)
+  editor         User       @relation(fields: [editorId], references: [id], onDelete: Restrict)
+  publishedFor   Report[]   @relation("PublishedRevision")
+
+  @@unique([reportId, number])
+  @@unique([reportId, id])
+  @@index([editorId])
+  @@schema("outsaid")
+}
+
+model ModerationEvent {
+  id                     String              @id @default(uuid()) @db.Uuid
+  reportId               String              @db.Uuid
+  actorId                String              @db.Uuid
+  action                 ModerationAction
+  reason                 String              @db.Text
+  fromPublicationStatus  PublicationStatus?
+  toPublicationStatus    PublicationStatus?
+  fromVerificationStatus VerificationStatus?
+  toVerificationStatus   VerificationStatus?
+  createdAt              DateTime            @default(now()) @db.Timestamptz(3)
+  report                 Report              @relation(fields: [reportId], references: [id], onDelete: Restrict)
+  actor                  User                @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([reportId, createdAt, id])
+  @@index([actorId, createdAt])
+  @@schema("outsaid")
+}
+
+model ContentFlag {
+  id             String     @id @default(uuid()) @db.Uuid
+  reportId       String     @db.Uuid
+  submittedById  String     @db.Uuid
+  reason         FlagReason
+  details        String?    @db.Text
+  status         FlagStatus @default(OPEN)
+  resolvedById   String?    @db.Uuid
+  resolvedAt     DateTime?  @db.Timestamptz(3)
+  resolutionNote String?    @db.Text
+  createdAt      DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime   @updatedAt @db.Timestamptz(3)
+  report         Report     @relation(fields: [reportId], references: [id], onDelete: Restrict)
+  submittedBy    User       @relation("FlagSubmitter", fields: [submittedById], references: [id], onDelete: Restrict)
+  resolvedBy     User?      @relation("FlagResolver", fields: [resolvedById], references: [id], onDelete: Restrict)
+
+  @@index([reportId, createdAt])
+  @@index([status, createdAt, id])
+  @@index([submittedById])
+  @@index([resolvedById])
+  @@schema("outsaid")
+}
