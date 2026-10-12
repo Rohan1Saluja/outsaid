@@ -25,6 +25,29 @@ export class RateLimitService {
     return `${groups.slice(0, 4).join(':')}::/64`;
   }
 
+  async consumeReport(accountId: string, action: 'create' | 'edit' | 'submit'): Promise<void> {
+    const limit = { create: 20, edit: 120, submit: 20 }[action];
+    const key = keyedHash(this.config.secret, `report:${action}:${accountId}`);
+    try {
+      const count = await this.db.$transaction(async tx => {
+        const rows = await tx.$queryRaw<{ attempts: number }[]>`
+          INSERT INTO outsaid."LoginThrottle" ("key", "windowStart", "attempts")
+          VALUES (${key}, date_trunc('hour', CURRENT_TIMESTAMP AT TIME ZONE 'UTC') AT TIME ZONE 'UTC', 1)
+          ON CONFLICT ("key") DO UPDATE SET
+            "attempts" = CASE WHEN "LoginThrottle"."windowStart" = EXCLUDED."windowStart" THEN LEAST("LoginThrottle"."attempts" + 1, 1000000) ELSE 1 END,
+            "windowStart" = EXCLUDED."windowStart"
+          RETURNING "attempts"`;
+        await tx.$executeRaw`DELETE FROM outsaid."LoginThrottle" WHERE "key" IN
+          (SELECT "key" FROM outsaid."LoginThrottle" WHERE "windowStart" < CURRENT_TIMESTAMP - interval '24 hours' LIMIT 100)`;
+        return rows[0]!.attempts;
+      });
+      if (count > limit) throw new HttpException('Too many report mutations. Try again after the current hour.', 429);
+    } catch (error) {
+      if (error instanceof HttpException && error.getStatus() === 429) throw error;
+      throw new ServiceUnavailableException();
+    }
+  }
+
   async consume(email: string, source: string): Promise<void> {
     const keys = [keyedHash(this.config.secret, `account:${email}`), keyedHash(this.config.secret, `source:${source}`)];
     try {

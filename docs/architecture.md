@@ -8,7 +8,7 @@ The implemented business-independent route is `GET /v1/health`. It returns the f
 Nest uses an explicit Express adapter, a global `v1` prefix, strict ValidationPipe (unknown DTO properties rejected, implicit conversion disabled, no target/value leak), and an exception filter. Unexpected errors are sanitized; logs deliberately omit raw errors, bodies and database URLs. Add structured request IDs and safe stage-specific diagnostics when real services are introduced.
 
 ## Workspaces
-`@outsaid/contracts` exports TypeScript-only response/envelope/pagination types; it has no runtime or database dependencies. Authentication contracts are implemented; report contracts in docs/api-contracts.md remain proposals. `@outsaid/config` provides strict compiler settings and shared lint rules. Web adds Next-specific rules and prohibits database/API imports.
+`@outsaid/contracts` exports TypeScript-only response/envelope/pagination types; it has no runtime or database dependencies. Authentication and private author-report contracts are implemented; public reading/moderation contracts remain proposals. `@outsaid/config` provides strict compiler settings and shared lint rules. Web adds Next-specific rules and prohibits database/API imports.
 
 Turborepo orchestrates independent apps; it tracks `API_ORIGIN` for web build caching. Prisma Client is generated into ignored API source and compiled alongside Nest. A generated client is reusable within one process; it contains no session/application state. No database connection is opened until a query is performed. The PostgreSQL driver pool is bounded to two connections per instance, with idle and acquisition timeouts, in addition to Supabase transaction pooling.
 
@@ -19,14 +19,14 @@ All tables and enums live in `outsaid`, not an exposed Supabase schema.
 | --- | --- |
 | User | Normalized unique email, password hash, role and deactivation timestamp |
 | Session | Unique hashed opaque token, owner, expiration and revocation; no raw token |
-| LoginThrottle | Private account/source HMAC, fixed-window timestamp and atomic counter |
+| LoginThrottle | Private account/source/action HMAC, fixed-window timestamp and atomic counter |
 | Report | Private working copy, owner, independent publication/verification states, version, approval/publication metadata |
 | ReportSource | Private evidence link/document/eyewitness description; not automatically public |
 | ReportRevision | Immutable numbered content and source snapshot; unique number within a report |
 | ModerationEvent | Append-only actor, action, reason and status transition record |
 | ContentFlag | Private flag, reporter, review status and resolver metadata |
 
-Indexes support author collections, moderation queues, public publication order, session expiry and audit history. All future collections use bounded cursor pagination. Foreign keys preserve report/audit ownership; user deletion is restricted where it would erase reporting history. Session rows cascade on user deletion. Account disabling is separate from deletion.
+Indexes support author collections, moderation queues, public publication order, session expiry and audit history. Private /reports/mine uses bounded timestamp/UUID cursor pagination. Future collections must follow the same bounded pattern. Foreign keys preserve report/audit ownership; user deletion is restricted where it would erase reporting history. Session rows cascade on user deletion. Account disabling is separate from deletion.
 
 The published revision composite foreign key prevents selecting another report's revision. SQL constraints require positive versions, valid session lifetimes, normalized email, source snapshot arrays, consistent approval/flag metadata, and approval + revision + timestamp for PUBLISHED. Append-only triggers prevent ordinary UPDATE/DELETE of revisions and moderation events. These SQL invariants supplement Prisma and are intentionally not all expressible in its schema.
 
@@ -43,4 +43,10 @@ Nest owns login, safe account serialization, opaque sessions and database thrott
 `LoginThrottle` is a private eighth model. Atomic PostgreSQL upserts count normalized-account and trusted-source HMACs across instances. See [authentication operations](authentication.md) for source trust, fixed-window tradeoffs and retention.
 
 ## Intentionally absent
-Public registration, verification/reset/email delivery, public report queries, submission/moderation services, uploads and real news. Authentication does not authorize unimplemented product workflows.
+Public registration, verification/reset/email delivery, public report queries, moderation/publication services, uploads and real news. Authentication does not authorize unimplemented product workflows.
+
+## Private author reports
+
+ReportsModule imports the existing AuthModule/PrismaModule. SessionGuard + RolesGuard protect all routes; every role remains restricted to its own report IDs in backend predicates. Creation, editing and submission atomically preserve ReportRevision snapshots. Conditional author/status/version updates prevent lost writes; submitted reports are read-only. Current sources can be replaced because immutable revisions store independent JSON, not ReportSource foreign keys. No schema migration was needed.
+
+Explicit private selects omit owner/editor identities and editorial approval fields. All responses are no-store. Frontend uses typed same-origin cookie/CSRF requests, keeps unsaved content in component memory only and displays editorial/privacy/read-only guidance. Durable mutation budgets reuse LoginThrottle with account/action HMAC namespaces. Separate reviewed report runtime grants restrict columns/status/source/history operations; RLS never substitutes for Nest ownership checks. See [report operations](reports.md) and [API contracts](api-contracts.md).

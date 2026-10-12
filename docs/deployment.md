@@ -77,3 +77,9 @@ Domain assignments were inspected; Session 02 production health checks failed as
 Follow [authentication operations](authentication.md) before deploying this branch. New required **API-only** variables: AUTH_ALLOWED_ORIGINS and AUTH_SECRET. VERCEL is platform-provided, not a client header. Configure preview origins and isolated preview databases explicitly. The web project still requires only API_ORIGIN; no auth secret or database access belongs there.
 
 Provision the least-privilege runtime role separately from migration/provisioning credentials; explicitly apply migrations to confirmed development first. Schedule hourly trusted `auth:cleanup` for retention. Before release, verify actual secure cookie forwarding, source-header spoof resistance through both direct/rewrite paths, native PostgreSQL concurrency, Supabase transaction pooling and schema exposure settings. Do not set production variables or run production migrations as part of this PR.
+
+## Session 03 private-report gate
+
+No migration, new integration or environment variable is introduced. Before isolated preview verification, review/apply reports-runtime-role.sql on the confirmed development database and grant outsaid_reports_runtime to the existing restricted backend login alongside its auth membership. Follow [report operations](reports.md); preserve private schema/Data API settings, runtime CA certificate packaging and TLS verification. The existing trusted hourly auth:cleanup job also retains report-mutation throttle rows for 24 hours.
+
+Session 03 did not verify Vercel authentication/certificate configuration, change environments, run remote SQL or deploy. Earlier deployment health observations are historical, not a current remote-health conclusion. Independently verify the restricted Supabase connection, native concurrency, desktop/mobile UI and actual deployed rewrite/cookie/CSRF behavior before release. Build hooks must continue to generate only, never migrate.

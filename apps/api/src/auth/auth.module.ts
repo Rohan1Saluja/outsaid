@@ -7,5 +7,5 @@ import { RateLimitService } from './rate-limit.service';
 import { OriginGuard, SessionGuard, RolesGuard } from './auth.guards';
 @Module({ imports: [PrismaModule], controllers: [AuthController],
   providers: [AuthService, AuthConfig, RateLimitService, OriginGuard, SessionGuard, RolesGuard],
-  exports: [AuthService, AuthConfig, SessionGuard, RolesGuard] })
+  exports: [AuthService, AuthConfig, SessionGuard, RolesGuard, RateLimitService] })
 export class AuthModule {}

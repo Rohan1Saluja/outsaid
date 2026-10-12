@@ -3,7 +3,7 @@
 ## Mission and scope
 Independent, community-powered public-interest news, initially Delhi NCR. Apply identical editorial standards across political affiliations. Do not fabricate reports, evidence, sources, or claims of verification.
 
-Work only on the current session. Session 02 adds controlled pilot authentication and sessions; publishing, submissions, moderation UI, uploads and public registration remain out of scope. Do not silently implement later work.
+Work only on the current session. Session 03 adds private author drafting, immutable revisions and submission for human review. Publishing, moderation UI, uploads and public registration remain out of scope. Do not silently implement later work.
 
 ## Architecture
 - pnpm/Turborepo, strict TypeScript, Next.js App Router + Tailwind (shadcn/ui when interactive components are needed), NestJS Express REST + class-validator, Prisma + Supabase PostgreSQL.
