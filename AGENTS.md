@@ -3,7 +3,7 @@
 ## Mission and scope
 Independent, community-powered public-interest news, initially Delhi NCR. Apply identical editorial standards across political affiliations. Do not fabricate reports, evidence, sources, or claims of verification.
 
-Work only on the current session. Session 01 establishes the foundation; it does not implement authentication, publishing, submissions, moderation UI, or uploads. Do not silently implement later work.
+Work only on the current session. Session 02 adds controlled pilot authentication and sessions; publishing, submissions, moderation UI, uploads and public registration remain out of scope. Do not silently implement later work.
 
 ## Architecture
 - pnpm/Turborepo, strict TypeScript, Next.js App Router + Tailwind (shadcn/ui when interactive components are needed), NestJS Express REST + class-validator, Prisma + Supabase PostgreSQL.
@@ -14,7 +14,7 @@ Work only on the current session. Session 01 establishes the foundation; it does
 - All application tables belong to the private `outsaid` schema. Never expose it through Supabase Data API.
 
 ## Security and editorial boundaries
-- Future auth: Argon2id, random opaque tokens, database-backed sessions storing only token hashes, expiration and revocation; Secure/HttpOnly/host-only cookies, suitable SameSite, same-origin proxy, CSRF + origin checks for mutations. No localStorage tokens or in-memory sessions.
+- Auth: Argon2id, random opaque tokens, database-backed sessions storing only token hashes, expiration and revocation; Secure/HttpOnly/host-only cookies, suitable SameSite, same-origin proxy, CSRF + origin checks for mutations. No localStorage tokens or in-memory sessions.
 - Implement rate limits using durable infrastructure before enabling login/submission. CORS is not authentication or CSRF protection.
 - Unreviewed reports remain private. Human review precedes publication; popularity or AI output is never verification.
 - Keep publication and verification states independent; distinguish claims and evidence. Public reads must use an approved immutable revision and explicit redacted DTOs.

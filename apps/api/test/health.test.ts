@@ -10,6 +10,8 @@ import { validateEnvironment } from '../src/config/environment';
 let app: NestExpressApplication;
 before(async () => {
   process.env.NODE_ENV = 'test';
+  process.env.AUTH_ALLOWED_ORIGINS = 'http://localhost:3000';
+  process.env.AUTH_SECRET = 'a'.repeat(64);
   // Deliberately unavailable: this test must not query a real database.
   process.env.DATABASE_URL = 'postgresql://test:test@127.0.0.1:1/outsaid';
   const { AppModule } = await import('../src/app.module');
@@ -28,7 +30,7 @@ test('GET /v1/health returns the exact liveness contract without a database', as
 });
 test('unversioned health is absent; unimplemented API routes use the error envelope', async () => {
   await request(app.getHttpServer()).get('/health').expect(404);
-  for (const path of ['/v1/reports', '/v1/auth/me']) {
+  for (const path of ['/v1/reports', '/v1/auth/register']) {
     const response = await request(app.getHttpServer()).get(path).expect(404);
     assert.equal(response.body.error.code, 'HTTP_404');
     assert.equal(response.body.stack, undefined);

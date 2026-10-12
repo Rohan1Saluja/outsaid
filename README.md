@@ -2,7 +2,7 @@
 
 Independent, community-powered public-interest reporting, starting with Delhi NCR.
 
-Session 01 contains a working monorepo foundation and a light editorial landing page. Only `GET /v1/health` is implemented. No authentication, report submission, feed, moderation, or upload features exist yet.
+Session 02 adds controlled pilot login, database sessions, CSRF/origin protection, durable login throttling, trusted account provisioning and minimal login/account pages. Public registration, reporting, feeds, moderation and uploads remain deferred.
 
 ## Local setup
 
@@ -13,6 +13,7 @@ npm install --global pnpm@11.25.0
 pnpm install
 cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env.local
+# Set AUTH_SECRET privately in apps/api/.env before starting (see docs/authentication.md).
 pnpm dev
 ```
 
@@ -33,7 +34,7 @@ curl http://localhost:3000/api/v1/health
 | `pnpm build` | Both apps and shared declarations |
 | `pnpm lint` | ESLint across application/contracts sources |
 | `pnpm typecheck` | Strict TypeScript and Next route types |
-| `pnpm test` | Focused API HTTP/configuration tests |
+| `pnpm test` | Disposable PostgreSQL-engine auth/HTTP/configuration tests |
 | `pnpm db:validate` | Validate Prisma schema offline |
 | `pnpm db:generate` | Generate API-owned Prisma Client offline |
 | `pnpm db:migrate:dev --name <name>` | Explicit development migration (needs DB/shadow access) |
@@ -56,6 +57,8 @@ No build or install applies migrations. API build, dev, tests, and typecheck gen
 - `packages/config`: strict TypeScript and shared ESLint configuration.
 - `docs`: architecture, editorial policy, deployment, future contracts, session handoff.
 
-See [architecture](docs/architecture.md), [editorial policy](docs/editorial-policy.md), [planned API contracts](docs/api-contracts.md), [deployment](docs/deployment.md), and [handoff](docs/handoff.md).
+See [architecture](docs/architecture.md), [editorial policy](docs/editorial-policy.md), [API contracts](docs/api-contracts.md), [deployment](docs/deployment.md), and [handoff](docs/handoff.md).
 
 Vercel project configuration is supplied, but neither app has been deployed by this session. Database migration execution requires separate credentials and review.
+
+See [authentication operations](docs/authentication.md) for pilot provisioning, secrets, runtime roles, retention and remaining deployment gates.

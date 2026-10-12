@@ -11,6 +11,7 @@ export default function Home() {
       <a href="#main" className="skip-link">Skip to content</a>
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-stone-300 py-7">
         <Link href="/" aria-label="Outsaid home" className="wordmark text-4xl font-black tracking-tighter">outsaid<span className="text-teal-800">.</span></Link>
+        <Link href="/login" className="text-sm font-semibold text-teal-900 underline underline-offset-4">Pilot sign in</Link>
         <span className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-600">Independent voices · Delhi NCR</span>
       </header>
       <main id="main">
